@@ -1,0 +1,451 @@
+---
+title: Nonmetric Elastic Scaling and Sammon Mapping
+author: 
+    - name: Jan de Leeuw
+      orcid: 0000-0003-1420-1797
+      email: jan@deleeuwpdx.net
+      affiliation: 
+        - name: University of California Los Angeles
+          city: Los Angeles
+          state: CA
+          url: www.ucla.edu
+      license: "CC0"
+date: last-modified
+date-format: long
+bibliography: [mypubs.bib, total.bib]
+number-sections: true
+pdf-engine: lualatex
+keep-tex: true
+format:
+   pdf:
+    fontsize: 12pt
+    include-in-header: 
+     - preamble.tex
+    keep-tex: true
+    link-citations: true
+    documentclass: scrartcl
+    number-sections: true
+   html:
+    fontsize: 12pt
+    include-in-header: 
+     - preamble.css
+    keep-md: true
+    number-sections: true
+toc: true
+toc-depth: 3
+editor: source
+papersize: letter
+graphics: true
+link-citations: true
+mainfont: Times New Roman
+abstract: TBD
+---
+
+```{r loadpackages, echo = FALSE}
+suppressPackageStartupMessages(library(knitr, quietly = TRUE))
+suppressPackageStartupMessages(library(tinytex, quietly = TRUE))
+suppressPackageStartupMessages(library(CVXR, quietly = TRUE))
+suppressPackageStartupMessages(library(microbenchmark, quietly = TRUE))
+```
+```{r matrixprint, echo = FALSE}
+matrixPrint <- function(x,
+                        digits = 6,
+                        width = 8,
+                        format = "f",
+                        flag = "+") {
+  print(noquote(
+    formatC(
+      x,
+      digits = digits,
+      width = width,
+      format = format,
+      flag = flag
+    )
+  ))
+}
+```
+
+```{r loadfiles, echo = FALSE}
+source("smacofDataUtilities.R")
+source("smacofPlots.R")
+source("smacofAuxiliaries.R")
+source("smacofTorgerson.R")
+source("../smacofFlat/smacofSSData/ekmanData.R")
+source("../smacofFlat/smacofSSData/morseData.R")
+dyn.load("smacofSSsamelas.so")
+dyn.load("smacofSSElastic.so")
+dyn.load("smacofSSSammon.so")
+```
+
+**Note:** This is a working manuscript which will be expanded/updated
+frequently. All suggestions for improvement are welcome. All Rmd, tex,
+html, pdf, R, and C files are in the public domain. Attribution will be
+appreciated, but is not required. The files can be found at
+<https://github.com/deleeuw/sammon> 
+
+\sectionbreak
+
+# Introduction
+
+Early in the history of computerized Multidimensional Scaling (MDS), between the seminal contributions of Shepard/Kruskal and Guttman/Lingoes/Roskam, there was the "elastic method" proposed by Victor E. McGee in a series of papers (@mcgee_65, @mcgee_66, @mcgee_67, @mcgee_68). The method has been largely forgotten, but it is worth preserving, because it is different in some important aspects from the more well-known methods.
+
+In engineering and computer science *Sammon Mapping* is a popular MDS method. The technique was introduced in @sammon_69. It was originally intended to map points from a higher-dimensional
+Euclidean space into points in a lower-dimensional Euclidean space by approximating the given higher dimensional distances by best-fitting lower dimensional ones. 
+
+The least squares loss function in most MDS methods (@borg_groenen_05) can be written as
+\begin{equation}
+\sigma(X,\Delta):=\frac{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}(\delta_{ij}-d_{ij}(X))^2}{ \mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}^2},\label{eq-kruskal}
+\end{equation}
+where $X$ is the *configuration* of $n$ *points* in $p$ *dimensions*, $d_{ij}(X)$ is the *Euclidean distance* between points $i$ and $j$ in configuration $X$, $\delta_{ij}$ is the *dissimilarity* between points $i$ and $j$, and $w_{ij}$ is a *weight*. Weights are non-negative.
+
+In the *metric* version of the MDS method the dissimilarities are observed and fixed, and minimization is over configurations only. The denominator in \eqref{eq-kruskal} is irrelevant for the minimization problem, but it 
+normalizes the problem in the sense that the minimum of stress is between zero and one.
+In the *nonmetric* version minimization is over both configurations and dissimilarities, with the constraint that the dissimilarities are monotonic with an observed set of  dissimilarities.
+
+It is true that in the original Kruskal formulation the denominator is the sum of the squared distances instead. But @deleeuw_U_75a shows that normalizing by using either the sum of squared distances or the sum of squared dissimilarities leads to the same solution (up to a scalar proportionality factor). The smacof program (@deleeuw_mair_A_09c, @mair_groenen_deleeuw_A_22) minimizes the numerator of \eqref{eq-kruskal} over configurations and dissimilarities, with the additional constraint that the sum of squares of the dissimilarities is equal to a constant. Again, this *explicit normalization* gives the same solution, up to proportionality, as the original Kruskal formulation that uses *implicit normalization* by dividing by the sum of squared distances.
+
+In McGee's elastic method the loss is constructed to satisfy two requirements. The first one is
+
+> Psychological judgments which indicated relatively great separation of stimuli should be allowed greater error than judgments indicating close proximity (l.c. p. 182)
+
+And the second requirement is the basic MDS requirement that dimensionality of $X$ must as low as possible, while still providing a good fit.
+
+> A criterion which suggested itself in response to the first requirement was one based on the physical work done on an elastic spring to stretch or compress it from an initial length $\delta_{ij}$ to a final length $d_{ij}$. (l.c. p. 183)
+
+This leads to the loss function 
+\begin{equation}
+\sigma(X,\Delta):=\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\frac{(\delta_{ij}-d_{ij}(X))^2}{\delta_{ij}^2},\label{eq-mcgee}
+\end{equation}
+which McGee calls *work*. We shall just call it *stress* (and *elastic stress* or *McGee stress*), using the more familiar MDS name for loss. We will also continue to use the symbol $\sigma$ for any least squares MDS loss function.
+
+The elastic MDS problem is minimization of stress
+over both $X$ and $\Delta$, where $\Delta$ must be monotone with the given dissimilarities.
+In \eqref{eq-mcgee} the weight $w_{ij}$ is interpreted as the modulus of elasticity of the spring $(i,j)$.
+
+In McGee's papers the actual algorithm and its implementation are not described in sufficient detail. Part of the problem is that he is dealing exclusively with the nonmetric case, in which minimization over both $X$ and $\Delta$ is necessary. In the metric case minimization is over $X$ only, and the algorithm is much simpler.
+
+The *MASS* package for R implemented the *sammon()*
+function, which generalizes the original idea by allowing the higher-dimensional distances to be
+replaced by any positive symmetric matrix of dissimilarities. This was again generalized in the packages *stops* (@rusch_mair_hornik_23) and *smacofx* (@rusch_deleeuw_chen_mair_25) where optimization
+is over low-dimensional configations and over power transforms of the dissimilarities.
+
+The Sammon loss function is
+\begin{equation}
+\sigma(X,\Delta)=\frac{1}{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}}\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\frac{(\delta_{ij}-d_{ij}(X))^2}{\delta_{ij}}.\label{eq-loss}
+\end{equation}
+
+The metric MDS problem we address in this paper is minimizing \eqref{eq-loss} over
+the $n\times p$ *configurations* $X$. In the non-metric case we minimize in addition over the
+symmetric non-negative and hollow matrices $\Delta:=\{\delta_{ij}\}$, where the $\delta_{ij}$ are
+monotone with the given dissimilarities. 
+
+
+
+# Properties of Loss
+
+The usual stress loss function in smacof, due originally to @kruskal_64a and @kruskal_64b, is
+\begin{equation}
+\sigma(X,\Delta)=\frac{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}(\delta_{ij}-d_{ij}(X))^2}{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}^2}.\label{eq-stress}
+\end{equation}
+If we compare \eqref{eq-loss} and \eqref{eq-stress} we see that in Kruskal's stress
+the sum of the squared residuals is normalized by dividing by the sum of the squared
+dissimilarities. This means minimum stress is between zero and one, and it also prevents
+us from considering the trivial zero-residual solution $X=0$ and $\Delta=0$. In Sammon
+loss each residual is normalized separately, based on the idea that large dissimilarities
+are somehow less reliable or stable and should be downweighted.
+
+
+If $\delta_{ij}$ and $d_{ij}(X)$ are close then
+\begin{equation}
+\sqrt{d_{ij}(X)}-\sqrt{\delta_{ij}}\approx\frac12\frac{1}{\sqrt{\delta_{ij}}}(d_{ij}(X)-\delta_{ij}),
+\end{equation}
+and thus
+\begin{equation}
+\sum w_{ij}\frac{(\delta_{ij}-d_{ij}(X))^2}{\delta_{ij}}\approx 4\sum w_{ij}(\sqrt{\delta_{ij}}-\sqrt{d_{ij}(X)})^2\label{eq-sqstress}
+\end{equation}
+The loss function on the right-hand side of \eqref{eq-sqstress}, which we will informally call
+*sqrt-stress*, is the special case of *rStress* with $r=\frac14$ (@deleeuw_groenen_mair_E_16a).
+
+If $\delta_{ij}$ and $d_{ij}(X)$ are non-zero and close then a first order Taylor series expansion gives
+\begin{equation}
+\log d_{ij}(X)-\log\delta_{ij}\approx\frac{1}{\delta_{ij}}(d_{ij}(X)-\delta_{ij}),\label{eq-ddelta}
+\end{equation}
+from which it follows that
+\begin{equation}
+\sigma(X,\Delta)\approx\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}(\log\delta_{ij}-\log d_{ij}(X))^2.\label{eq-approx}
+\end{equation}
+If the fit is good the elastic stress will be approximately equal to the logarithmic stress from @ramsay_77. Or, to put it differently, minimizing elastic stress can serve as an approximation to minimizing logarithmic stress.
+
+# Algorithm
+
+
+## Majorization
+
+In metric (ratio) MDS we minimize over $X$ for fixed $\Delta$. This is a standard smacof problem with weights $\smash{\tilde w_{ij}:=w_{ij}\delta_{ij}^{-1}}$. We use majorization steps to decrease loss. This is identical to the *sammon* option in *smacofx*. Because the $\delta_{ij}$ are the same in each iteration, the same is true for the weights $\tilde w_{ij}$. Without going into details
+
+
+In the non-metric case we use block relaxation, i.e. we alternate majorization steps with 
+minimizing over $\Delta$, satisfying the ordinal constraints, for fixed $X$.
+As far as I know this has not been implemented before, and is non-standard.
+The reason ...
+
+## Elastic Monotone Regression
+
+To minimize over $\Delta$ for given $X$ we define $\gamma_{ij}:=-\delta_{ij}^{-1}$ and $c_{ij}(X):=-d_{ij}^{-1}(X)$.
+Rewrite loss as 
+\begin{equation}
+\sigma(X,\Gamma)=\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}d_{ij}^2(X)(\gamma_{ij}-c_{ij}(X))^2,\label{eq-mcgee5}
+\end{equation}
+which we must minimize over increasing $\gamma_{ij}$. This is just monotone regression with  the $c_{ij}(X)$ as the targets and with weights $w_{ij}d_{ij}^2(X)$. After we have found the optimal $\hat\gamma_{ij}$ we transform
+back to $\hat\delta_{ij}=-\hat\gamma_{ij}^{-1}$.
+
+
+
+## Sammon Monotone Regression
+
+First, use the fact that 
+\begin{equation}
+\min_X\sigma(X,\Delta)=\min_X \sigma(X,\lambda\Delta),
+\end{equation}
+i.e. the problem is homogeneous of degree zero in $\Delta$. Thus we can require without loss of generality
+that
+\begin{equation}
+\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}=1.
+\end{equation}
+With this normalization we have
+\begin{equation}
+\sigma(X,\Delta)=1-2\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}d_{ij}(X)+\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\frac{d_{ij}^2(X)}{\delta_{ij}}.
+\end{equation}
+Thus minimizing $\omega$ for fixed $X$ over non-negative, isotone and normalized $\Delta$ means minimizing
+the third term on the right. And this means minimizing a separable, differentiable, and strictly convex 
+function over a polyhedral convex set.
+
+To simplify notation we define the extended real valued function $f$ equal to
+\begin{equation}
+f(x):=\sum_{i=1}^nw_i\frac{y_i}{x_i}
+\end{equation}
+if $x_i>0$ for all $i$, and to $+\infty$ otherwise. Thus the effective domain $\text{dom}(f)$ is the interior of the positive orthant. In the context of Sammon Mapping the $y_i$ are squared distances and the $x_i$ are the transformed dissimilarities.
+
+The *Sammon Monotone Regression* or SMR problem is defined as minimization of $f$ over the intersection of the polyhedral convex cone $\mathcal{K}$ defined by $0<x_1\leq\cdots\leq x_n$ and the affine set $\mathcal{A}$ defined by $w'x=1$. We assume that all $w_i$ and all $y_i$ are positive, and that the $w_i$ add up to one.  
+
+The first and second partials of $f$ are
+\begin{align}
+\mathcal{D}_if(x)&=-w_i\frac{y_i}{x_i^2},\\
+\mathcal{D}_{ii}f(x)&=2w_i\frac{y_i}{x_i^3},
+\end{align}
+and $\mathcal{D}_{ik}f(x)=0$ if $i\neq k$. This shows $f$ is convex and twice differentiable on $\text{dom}(f)$, and thus on the intersection with $\mathcal{K}\cap\mathcal{A}$.
+
+First some preliminary results.
+
+::: {#lem-bound}
+\begin{equation}
+\min_{x\in\mathcal{K}\cap\mathcal{A}}f(x)\leq w'y
+\end{equation}
+:::
+
+
+::: {.proof}
+The vector $x$ with $x_i=1$ for all $i$ is in $\mathcal{K}\cap\mathcal{A}$. 
+:::
+
+It follows from @lem-bound that we can add the constraint $f(x)\leq w'y$ to the minimization problem and still have the same minimum and minimizer.
+
+::: {#lem-fine}
+Suppose $y_1\leq\cdots\leq y_n$. Then
+\begin{equation}
+\overline x_i= \frac{\sqrt{y_i}}{\sum_{k=1}^nw_k\sqrt{y_k}}.\label{eq-well}
+\end{equation}
+:::
+::: {.proof}
+The necessary conditions for a minimum of $f$ on $\mathcal{A}$ are
+\begin{equation}
+-w_i\frac{y_i}{x_i^2}=\lambda w_i,\label{eq-grad}
+\end{equation}
+for all $i$, together with the side condition $w'x=1$. From \eqref{eq-grad} it follows that 
+the solution $\overline x$ must be proportional to $\sqrt{y}$, where the square 
+root can have either sign.
+Of the $2^n$ solutions only one is in the effective domain of $f$, the one for which all
+all square roots are taken with a positive sign. This solution is also in $\mathcal{K}$.
+Applying the side condition gives \eqref{eq-well}.
+:::
+
+The next rather trivial lemma deals with the case $n=1$, in which $w,x$ and $y$ are one-element vectors,
+which identify with the corresponding scalars.
+
+::: {#lem-one}
+If $n=1$ then the minimizer $\overline x$ is equal to one and the minimum is $y$.
+:::
+::: {.proof}
+$w$ adds up to one, so $w=1$. Also $wx$ must be one, so $\overline x=1$.
+:::
+
+The following theorem is of prime importance, because it shows the SMR problem can be solved with a variation of the Pool Adjacent Violaters Algorithm (PAVA). For the details on PAVA, see for 
+example @deleeuw_hornik_mair_A_09.
+
+::: {#thm-pava}
+Suppose $\overline{x}$ is the optimum solution. If $y_i\geq y_{i+1}$ then $\overline{x}_i=\overline{x}_{i+1}$.
+:::
+::: {.proof}
+We show that $y_i\geq y_{i+1}$ and $\overline{x}_i<\overline{x}_{i+1}$ leads to a contradiction. A
+necessary and sufficient condition for $\overline x$ to be the optimum solution is
+\begin{equation}
+(x-\overline x)'\mathcal{D}f(\overline x)=-\sum_{i=1}^n w_i\frac{y_i}{\overline x_i^2}(x_i-\overline x_i)=f(\overline x)-\sum_{i=1}^n w_i\frac{y_i}{\overline x_i^2}x_i\geq 0
+\end{equation}
+for all $x\in\mathcal{K}\cap\mathcal{A}$ (@hiriart-urruty_lemarechal_93a, Theorem 1.1.1, page 293).
+
+Now suppose $\overline{x}_i<\overline{x}_{i+1}$. Then for $\epsilon>0$ small enough
+\begin{equation}
+z=\overline{x}+\epsilon\left(\frac{e_i}{w_i}-\frac{e_{i+1}}{w_{i+1}}\right)\label{eq-perturb}
+\end{equation}
+is also in $\mathcal{K}\cap\mathcal{A}$. In \eqref{eq-perturb} we add a small amount to $\overline x_i$
+and subtract a small amount from $\overline x_{i+1}$, while leaving all other elements of 
+$\overline x$ unperturbed. Since
+\begin{equation}
+\sum_{i=1}^n w_i\frac{y_i}{\overline x_i^2}z_i=f(\overline x)+\epsilon\left(\frac{y_i}{\overline x_i^2}-\frac{y_{i+1}}{\overline x_{i+1}^2}\right)
+\end{equation}
+we must have
+\begin{equation}
+\frac{y_i}{\overline x_i^2}\leq\frac{y_{i+1}}{\overline x_{i+1}^2}
+\end{equation}
+But $y_i\geq y_{i+1}$ and $\overline x_i<\overline x_{i+1}$ implies
+\begin{equation}
+\frac{y_i}{\overline x_i^2}>\frac{y_{i+1}}{\overline x_{i+1}^2}
+\end{equation}
+and thus $\overline x$ cannot be the optimal solution.
+:::
+
+@thm-pava can be used to replace an SMR problem of size $n$ with an SMR problem of size $n-1$. If $y_i\geq y_{i+1}$ we remove these two $y$-values and put the single value 
+\begin{equation}
+\tilde y_i:=\frac{w_iy_i+w_{i+1}y_{i+1}}{w_i+w_{i+1}}
+\end{equation}
+in their place. This new value gets the weight $\tilde w_i:=w_i+w_{i+1}$. 
+
+::: {#thm-monreg}
+Suppose $\hat x$ solves the monotone regression problem for the weighted least squares norm
+\begin{equation}
+\hat x:=\mathop{\text{argmin}}_{x_1\leq\cdots\leq x_n}(x-y)'W(x-y)
+\end{equation}
+then
+\begin{equation}
+\overline x_i=\frac{\sqrt{\hat x_i}}{\sum_{k=1}^nw_k\sqrt{\hat x_k}}
+\end{equation}
+solves the SMR problem.
+:::
+::: {.proof}
+We use @thm-pava repeatedly until we have an SMR problem of size $r$ for which
+$\tilde y_1<\cdots<\tilde y_r$. We can use the same sequence of pooling adjacent
+violators as in least squares monotone regression, and we find the same weighted average pooled
+values in each step. When we have reduced the problem to a strictly increasing
+$\tilde y$ sequence we apply @lem-fine (and if $r=1$ we apply @lem-one). We then
+expand each block again to a length equal to the number of averaged elements.
+:::
+
+A small example illustrates our PAVA variation. Start with $y$ equal to
+$(1,2,3,1,2,3,5,1)$ and $w$ equal to $(1,1,1,1,1,1,1,1)$.
+Merge elements 3 and 4 to get $y=(1,2,2,2,3,5,1)$
+and $w=(1,1,2,1,1,1,1)$. Now merge elements 2, 3, and 4
+to get $y=(1,2,3,5,1)$ and $w=(1,4,1,1,1)$. Merge 4 and 5
+to get $y=(1,2,3,3)$ and $w=(1,4,1,2)$ and finally merge
+3 and 4 to get $y=(1,2,3)$ and $w=(1,4,3)$. Thus
+$$
+\overline x=\frac{1}{1+4\sqrt{2}+3\sqrt{3}}(1, \sqrt{2}, \sqrt{2}, \sqrt{2}, \sqrt{2}, \sqrt{3}, \sqrt{3}, \sqrt{3})
+$$
+Remember that in the context of Sammon Mapping the least squares monotone regression is on the squared distances.
+
+# Software
+
+The github repository contains R and C versions of the smacofSSSammon program. 
+Both smacofSSSammonC() and smacofSSSammonR() have the same default values of the 
+parameters and the two programs are structured the same way. We iterate a 
+maximum of 1000 iterations until the change in stress from one iteration 
+to the next is less than `r 1e-6`. 
+
+A single majorization update is alternated
+with a single monotone regression. Note that the two steps in an iteration are
+different. In majorization we go one step towards minimizing $\sigma$ over
+$X$ for fixed $\Delta$, in the monotone regression we actually minimize
+$\sigma$ over $\Delta$ for given $X$.
+
+smacofSSSammonC() has a driver in R that sets up the MDS data structure (@deleeuw_E_25b). Both
+programs use a number of R utilities for data manipulation and to compute the initial configuration. One important difference is that the R version uses 
+gpava(), which is written in R, for monotone regression (@deleeuw_hornik_mair_A_09), while the R version uses the C routine monotone() from @busing_22.
+
+# Examples
+
+## Results
+
+We use two classical MDS data sets, both rather small. The Ekman data (@ekman_54) are dissimilarities between 14 colors, the Morse data (@rothkopf_57) have 37 Morse code signals. We are only interested in the performance of the software in this paper, not in interpreting the resulting MDS configurations. Only the results for C version are given, because the R version gives exactly the same results.
+
+```{r ekman, echo = FALSE}
+hen <- smacofSSSammonC(ekmanData, ordinal = FALSE)
+heo <- smacofSSSammonC(ekmanData, ordinal = TRUE)
+```
+For Ekman numerical Sammon mapping takes `r hen$niter` iterations to arrive at stress `r formatC(hen$stress, digits = 10, format = "f")`. For ordinal
+we need `r heo$niter` iterations for stress `r formatC(heo$stress,digits = 10, format = "f")`. Since the ordinal fit is very good the
+sqrt-stress of \eqref{eq-sqstress} should be close to Sammon stress. It is `r formatC(4 * sum((sqrt(heo$dhat) - sqrt(heo$confdist))^2), digits = 10, format = "f")`.
+
+
+```{r morse, echo = FALSE}
+hmn <- smacofSSSammonC(morseData, ordinal = FALSE, verbose = FALSE, eps = 1e-6)
+hmo <- smacofSSSammonC(morseData, ordinal = TRUE, verbose = FALSE, eps = 1e-6)
+```
+
+For Morse numerical Sammon mapping takes `r hmn$niter` iterations to arrive at stress `r hmn$stress`, for ordinal we need `r hmo$niter` iterations for stress `r hmo$stress`. Because the fit is much worse than
+in the Ekman case we do not expect sqrt-stress to be that close to Sammon stress. For the ordinal case final sqrt-stress is `r 4 * sum((sqrt(hmo$dhat) - sqrt(hmo$confdist))^2)`.
+
+## Timing
+
+The results of a comparison of the R and C implementations of Sammon mapping with microbenchmark (@mersmann_24) yields the times in microseconds in the following tables.
+
+```{r  mekman, echo = FALSE, cache = TRUE}
+xinit <- smacofTorgerson(ekmanData, ndim = 2)$conf
+suppressWarnings(microbenchmark(
+  smacofSSSammonR(ekmanData, ordinal = FALSE),
+  smacofSSSammonC(ekmanData, ordinal = FALSE),
+  smacofSSSammonR(ekmanData, ordinal = TRUE),
+  smacofSSSammonC(ekmanData, ordinal = TRUE)))
+```
+
+```{r  mmorse, echo = FALSE, cache = TRUE}
+xinit <- smacofTorgerson(morseData, ndim = 2)$conf
+suppressWarnings(microbenchmark(
+  smacofSSSammonR(morseData, ordinal = FALSE),
+  smacofSSSammonC(morseData, ordinal = FALSE),
+  smacofSSSammonR(morseData, ordinal = TRUE),
+  smacofSSSammonC(morseData, ordinal = TRUE)))
+```
+
+
+
+Of course these microbenchmark results depend on the default
+parameters of the programs (same in R and C), on the speed of my computer
+(Mac Mini with Apple M4 Pro, 64 GB of RAM, Tahoe 26.2, Apple clang 17.0.0), and on my programming habits (same in R and C).
+
+## Shepard Plots
+
+We use Shepard plots (@deleeuw_mair_C_15) to illustrate the difference between
+the solutions for classical Kruskal stress \eqref{eq-stress} and Sammon stress \eqref{eq-loss}. Both for
+Ekman and Morse we give the classical and Sammon solutions for the ordinal case, with the primary
+approach to ties.
+
+```{r compplotE, fig.align = "center", fig.width = 8, fig.height = 8, echo = FALSE}
+par(pty = "s")
+h1e <- smacofSSSammonC(ekmanData, ordinal = TRUE, verbose = FALSE)
+smacofShepardPlot(h1e, main = "Shepard Plot Ekman, Sammon")
+h2e <- smacofSS(ekmanData, ordinal = TRUE, verbose = FALSE)
+smacofShepardPlot(h2e, main = "Shepard Plot Ekman, Kruskal")
+```
+```{r compplotM, fig.align = "center", fig.width = 8, fig.height = 8, echo = FALSE}
+par(pty = "s")
+h1m <- smacofSSSammonC(morseData, ordinal = TRUE, verbose = FALSE)
+smacofShepardPlot(h1m, main = "Shepard Plot Morse, Sammon")
+h2m <- smacofSS(morseData, ordinal = TRUE, verbose = FALSE)
+smacofShepardPlot(h2m, main = "Shepard Plot Morse, Kruskal")
+```
+The examples show that the solutions are pretty similar, but definitely sammon MDS
+gives a better fit for the smaller dissimilarities and deemphasizes the larger ones.
+In the Ekman case the smallest dissimilarities are fitted almost perfectly
+
+\sectionbreak
+
+# References
