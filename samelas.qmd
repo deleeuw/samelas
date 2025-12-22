@@ -47,6 +47,7 @@ suppressPackageStartupMessages(library(tinytex, quietly = TRUE))
 suppressPackageStartupMessages(library(CVXR, quietly = TRUE))
 suppressPackageStartupMessages(library(microbenchmark, quietly = TRUE))
 ```
+
 ```{r matrixprint, echo = FALSE}
 matrixPrint <- function(x,
                         digits = 6,
@@ -65,16 +66,22 @@ matrixPrint <- function(x,
 }
 ```
 
-```{r loadfiles, echo = FALSE}
+```{r loadshlib, echo = FALSE}
+dyn.load("smacofSSSamelas.so")
+```
+
+```{r loadRfiles, echo = FALSE}
 source("smacofDataUtilities.R")
 source("smacofPlots.R")
 source("smacofAuxiliaries.R")
 source("smacofTorgerson.R")
-source("../smacofFlat/smacofSSData/ekmanData.R")
-source("../smacofFlat/smacofSSData/morseData.R")
-dyn.load("smacofSSsamelas.so")
-dyn.load("smacofSSElastic.so")
-dyn.load("smacofSSSammon.so")
+source("ekmanData.R")
+source("morseData.R")
+source("smacofSSSammonC.R")
+source("smacofSSElasticC.R")
+source("smacofSSSammonR.R")
+source("smacofSSElasticR.R")
+source("smacofSS.R")
 ```
 
 **Note:** This is a working manuscript which will be expanded/updated
@@ -87,10 +94,16 @@ appreciated, but is not required. The files can be found at
 
 # Introduction
 
-Early in the history of computerized Multidimensional Scaling (MDS), between the seminal contributions of Shepard/Kruskal and Guttman/Lingoes/Roskam, there was the "elastic method" proposed by Victor E. McGee in a series of papers (@mcgee_65, @mcgee_66, @mcgee_67, @mcgee_68). The method has been largely forgotten, but it is worth preserving, because it is different in some important aspects from the more well-known methods.
+In 1962 Roger N. Shepard published an algorithm and computer program for a non-metric Multidimensional Scaling (MDS) technique that iteratively fits distances to given dissimilarities by minimizing a least squares loss function (@shepard_62a, @shepard_62b). See also @deleeuw_E_17e. Shepard's technique is non-metric in the sense that its results are invariant over monotone transformations of the data, and consequently the results are a function of the rank order of the dissimilarities only. There were some heuristic components in Shepard's work, which were subsequently removed in the reformulation of non-metric MDS by Joseph B. Kruskal (@kruskal_64a, @kruskal_64b). Kruskal's MDS became the standard, not only in
+MDS, but in many related forms of non-metric data analysis (@meulman_16). The major renovations Kruskal introduced in psychometrics were the use of gradient methods to minimize differentiable loss functions and the use of monotone regression to find an optimal transformation of the dissimilarities.
 
-In engineering and computer science *Sammon Mapping* is a popular MDS method. The technique was introduced in @sammon_69. It was originally intended to map points from a higher-dimensional
-Euclidean space into points in a lower-dimensional Euclidean space by approximating the given higher dimensional distances by best-fitting lower dimensional ones. 
+In @guttman_68 Louis Guttman presented an alternative to Kruskal's non-metric MDS. It also used least squares
+loss functions and gradient-type methods of minimization, but it replaced monotone regression by rank 
+images. Guttman's approach was built out to a system of non-metric scaling methods by James C. Lingoes, Edward E. C. H. Roskam, and Ingwer Borg. See the collection @lingoes_roskam_borg_79.
+
+lmost simultaneously with the seminal contributions of Shepard/Kruskal and Guttman/Lingoes/Roskam, there was *Elastic Scaling* proposed by Victor E. McGee in a series of papers (@mcgee_65, @mcgee_66, @mcgee_67, @mcgee_68) and *Sammon Mapping*, proposed by John W. Sammon Jr. (@sammon_69).
+
+The Elastic method has been largely forgotten, but it is worth preserving, because it is different in some important aspects from the more well-known methods. In engineering and computer science Sammon Mapping is still a popular dimension reduction method. It was originally intended to map points from a higher-dimensional Euclidean space into points in a lower-dimensional Euclidean space by approximating the known higher dimensional distances by best-fitting lower dimensional ones. 
 
 The least squares loss function in most MDS methods (@borg_groenen_05) can be written as
 \begin{equation}
