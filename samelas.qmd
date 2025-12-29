@@ -38,7 +38,11 @@ papersize: letter
 graphics: true
 link-citations: true
 mainfont: Times New Roman
-abstract: TBD
+abstract: The multidimensional scaling methods of McGee and Sammon are adapted to the 
+  alternating least squares framework of smacof. This entails using the majorization 
+  approach to improve configurations and using variations of monotone regression to improve the
+  fit of distances to dissimilarities. It also implies that we describe, for the first time,
+  a non-metric version of Sammon Mapping. Implementations in R and C of metric and non-metric versions of McGee's Elastic Scaling and of Sammon Mapping are provided.
 ---
 
 ```{r loadpackages, echo = FALSE}
@@ -88,22 +92,22 @@ source("smacofSS.R")
 frequently. All suggestions for improvement are welcome. All Rmd, tex,
 html, pdf, R, and C files are in the public domain. Attribution will be
 appreciated, but is not required. The files can be found at
-<https://github.com/deleeuw/sammon> 
+<https://github.com/deleeuw/samelas> 
 
 \sectionbreak
 
 # Introduction
 
-In 1962 Roger N. Shepard published an algorithm and computer program for a non-metric Multidimensional Scaling (MDS) technique that iteratively fits distances to given dissimilarities by minimizing a least squares loss function (@shepard_62a, @shepard_62b). See also @deleeuw_E_17e. Shepard's technique is non-metric in the sense that its results are invariant over monotone transformations of the data, and consequently the results are a function of the rank order of the dissimilarities only. There were some heuristic components in Shepard's work, which were subsequently removed in the reformulation of non-metric MDS by Joseph B. Kruskal (@kruskal_64a, @kruskal_64b). Kruskal's MDS became the standard, not only in
+In 1962 Roger N. Shepard published an algorithm and computer program for a non-metric Multidimensional Scaling (MDS) technique that iteratively fits distances to given dissimilarities by minimizing a least squares loss function (@shepard_62a, @shepard_62b). See also @deleeuw_E_17e. Shepard's technique is non-metric in the sense that its results are invariant over monotone transformations of the data, and consequently the results are a function of the rank order of the dissimilarities only. There were some heuristic components in Shepard's work, which were subsequently removed in a reformulation of non-metric MDS by Joseph B. Kruskal (@kruskal_64a, @kruskal_64b). Kruskal's MDS became the standard, not only in
 MDS, but in many related forms of non-metric data analysis (@meulman_16). The major renovations Kruskal introduced in psychometrics were the use of gradient methods to minimize differentiable loss functions and the use of monotone regression to find an optimal transformation of the dissimilarities.
 
 In @guttman_68 Louis Guttman presented an alternative to Kruskal's non-metric MDS. It also used least squares
 loss functions and gradient-type methods of minimization, but it replaced monotone regression by rank 
-images. Guttman's approach was built out to a system of non-metric scaling methods by James C. Lingoes, Edward E. C. H. Roskam, and Ingwer Borg. See the collection @lingoes_roskam_borg_79.
+images. Very much like Kruskal's approach, the Guttman MDS method was built out to a system of non-metric scaling methods by James C. Lingoes, Edward E. C. H. Roskam, and Ingwer Borg. See the collection @lingoes_roskam_borg_79.
 
-lmost simultaneously with the seminal contributions of Shepard/Kruskal and Guttman/Lingoes/Roskam, there was *Elastic Scaling* proposed by Victor E. McGee in a series of papers (@mcgee_65, @mcgee_66, @mcgee_67, @mcgee_68) and *Sammon Mapping*, proposed by John W. Sammon Jr. (@sammon_69).
+Almost simultaneously with the seminal contributions of Shepard/Kruskal and Guttman/Lingoes/Roskam/Borg, there was *Elastic Scaling* proposed by Victor E. McGee in a series of papers (@mcgee_65, @mcgee_66, @mcgee_67, @mcgee_68) and *Sammon Mapping*, proposed by John W. Sammon Jr. (@sammon_69).
 
-The Elastic method has been largely forgotten, but it is worth preserving, because it is different in some important aspects from the more well-known methods. In engineering and computer science Sammon Mapping is still a popular dimension reduction method. It was originally intended to map points from a higher-dimensional Euclidean space into points in a lower-dimensional Euclidean space by approximating the known higher dimensional distances by best-fitting lower dimensional ones. 
+The Elastic method has been largely forgotten, but it is worth preserving, because it is different in some important aspects from the more well-known methods based on Kruskal's stress. In engineering and computer science Sammon Mapping is still a popular dimension reduction method. It was originally intended to map points from a higher-dimensional Euclidean space into points in a lower-dimensional Euclidean space by approximating the known higher dimensional distances by best-fitting lower dimensional ones. 
 
 The least squares loss function in most MDS methods (@borg_groenen_05) can be written as
 \begin{equation}
@@ -115,7 +119,7 @@ In the *metric* version of the MDS method the dissimilarities are observed and f
 normalizes the problem in the sense that the minimum of stress is between zero and one.
 In the *nonmetric* version minimization is over both configurations and dissimilarities, with the constraint that the dissimilarities are monotonic with an observed set of  dissimilarities.
 
-It is true that in the original Kruskal formulation the denominator is the sum of the squared distances instead. But @deleeuw_U_75a shows that normalizing by using either the sum of squared distances or the sum of squared dissimilarities leads to the same solution (up to a scalar proportionality factor). The smacof program (@deleeuw_mair_A_09c, @mair_groenen_deleeuw_A_22) minimizes the numerator of \eqref{eq-kruskal} over configurations and dissimilarities, with the additional constraint that the sum of squares of the dissimilarities is equal to a constant. Again, this *explicit normalization* gives the same solution, up to proportionality, as the original Kruskal formulation that uses *implicit normalization* by dividing by the sum of squared distances.
+It is true that in the original Kruskal formulation the denominator is the sum of the squared distances instead. But @deleeuw_U_75a shows that normalizing by using either the sum of squared distances or the sum of squared dissimilarities leads to the same MDS solution (up to a scalar proportionality factor). The smacof program (@deleeuw_mair_A_09c, @mair_groenen_deleeuw_A_22) minimizes the numerator of \eqref{eq-kruskal} over configurations and dissimilarities, with the additional constraint that the sum of squares of the dissimilarities is equal to a constant. Again, this *explicit normalization* gives the same solution, up to proportionality, as the original Kruskal formulation that uses *implicit normalization* by dividing "raw stress" by the sum of squared distances.
 
 In McGee's elastic method the loss is constructed to satisfy two requirements. The first one is
 
@@ -129,7 +133,7 @@ This leads to the loss function
 \begin{equation}
 \sigma(X,\Delta):=\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\frac{(\delta_{ij}-d_{ij}(X))^2}{\delta_{ij}^2},\label{eq-mcgee}
 \end{equation}
-which McGee calls *work*. We shall just call it *stress* (and *elastic stress* or *McGee stress*), using the more familiar MDS name for loss. We will also continue to use the symbol $\sigma$ for any least squares MDS loss function.
+which McGee calls *work*. We shall just call it *stress* (and *elastic stress* or *McGee stress*), using the more familiar MDS name for loss. We will also continue to use the symbol $\sigma$ for any of the least squares MDS loss functions.
 
 The elastic MDS problem is minimization of stress
 over both $X$ and $\Delta$, where $\Delta$ must be monotone with the given dissimilarities.
@@ -137,36 +141,43 @@ In \eqref{eq-mcgee} the weight $w_{ij}$ is interpreted as the modulus of elastic
 
 In McGee's papers the actual algorithm and its implementation are not described in sufficient detail. Part of the problem is that he is dealing exclusively with the nonmetric case, in which minimization over both $X$ and $\Delta$ is necessary. In the metric case minimization is over $X$ only, and the algorithm is much simpler.
 
-The *MASS* package for R implemented the *sammon()*
+The Sammon loss function is
+\begin{equation}
+\sigma(X,\Delta)=\frac{1}{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}}\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\frac{(\delta_{ij}-d_{ij}(X))^2}{\delta_{ij}}.\label{eq-sammon}
+\end{equation}
+
+The metric MDS problem we address in this paper is minimizing \eqref{eq-sammon} over
+the $n\times p$ *configurations* $X$. In the non-metric case we minimize in addition over the
+symmetric non-negative and hollow matrices $\Delta:=\{\delta_{ij}\}$, where the $\delta_{ij}$ are monotone with the given dissimilarities. 
+
+
+The *MASS* package for R implements the *sammon()*
 function, which generalizes the original idea by allowing the higher-dimensional distances to be
 replaced by any positive symmetric matrix of dissimilarities. This was again generalized in the packages *stops* (@rusch_mair_hornik_23) and *smacofx* (@rusch_deleeuw_chen_mair_25) where optimization
 is over low-dimensional configations and over power transforms of the dissimilarities.
 
-The Sammon loss function is
-\begin{equation}
-\sigma(X,\Delta)=\frac{1}{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}}\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\frac{(\delta_{ij}-d_{ij}(X))^2}{\delta_{ij}}.\label{eq-loss}
-\end{equation}
-
-The metric MDS problem we address in this paper is minimizing \eqref{eq-loss} over
-the $n\times p$ *configurations* $X$. In the non-metric case we minimize in addition over the
-symmetric non-negative and hollow matrices $\Delta:=\{\delta_{ij}\}$, where the $\delta_{ij}$ are
-monotone with the given dissimilarities. 
-
-
-
 # Properties of Loss
 
-The usual stress loss function in smacof, due originally to @kruskal_64a and @kruskal_64b, is
-\begin{equation}
-\sigma(X,\Delta)=\frac{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}(\delta_{ij}-d_{ij}(X))^2}{\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}\delta_{ij}^2}.\label{eq-stress}
-\end{equation}
-If we compare \eqref{eq-loss} and \eqref{eq-stress} we see that in Kruskal's stress
+## Elastic MDS
+
+If we compare \eqref{eq-mcgee} and \eqref{eq-kruskal} we see that in Kruskal's stress
 the sum of the squared residuals is normalized by dividing by the sum of the squared
 dissimilarities. This means minimum stress is between zero and one, and it also prevents
-us from considering the trivial zero-residual solution $X=0$ and $\Delta=0$. In Sammon
+us from considering the trivial zero-residual solution with $X=0$ and $\Delta=0$. In Elastic
 loss each residual is normalized separately, based on the idea that large dissimilarities
 are somehow less reliable or stable and should be downweighted.
 
+If $\delta_{ij}$ and $d_{ij}(X)$ are non-zero and close then a first order Taylor series expansion gives
+\begin{equation}
+\log d_{ij}(X)-\log\delta_{ij}\approx\frac{1}{\delta_{ij}}(d_{ij}(X)-\delta_{ij}),\label{eq-ddelta}
+\end{equation}
+from which it follows that
+\begin{equation}
+\sigma(X,\Delta)\approx\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}(\log\delta_{ij}-\log d_{ij}(X))^2.\label{eq-approx}
+\end{equation}
+If the fit is good the elastic stress will be approximately equal to the logarithmic stress from @ramsay_77. Or, to put it differently, minimizing elastic stress can serve as an approximation to minimizing logarithmic stress.
+
+## Sammon Mapping
 
 If $\delta_{ij}$ and $d_{ij}(X)$ are close then
 \begin{equation}
@@ -178,16 +189,6 @@ and thus
 \end{equation}
 The loss function on the right-hand side of \eqref{eq-sqstress}, which we will informally call
 *sqrt-stress*, is the special case of *rStress* with $r=\frac14$ (@deleeuw_groenen_mair_E_16a).
-
-If $\delta_{ij}$ and $d_{ij}(X)$ are non-zero and close then a first order Taylor series expansion gives
-\begin{equation}
-\log d_{ij}(X)-\log\delta_{ij}\approx\frac{1}{\delta_{ij}}(d_{ij}(X)-\delta_{ij}),\label{eq-ddelta}
-\end{equation}
-from which it follows that
-\begin{equation}
-\sigma(X,\Delta)\approx\mathop{\sum\sum}_{1\leq i<j\leq n}w_{ij}(\log\delta_{ij}-\log d_{ij}(X))^2.\label{eq-approx}
-\end{equation}
-If the fit is good the elastic stress will be approximately equal to the logarithmic stress from @ramsay_77. Or, to put it differently, minimizing elastic stress can serve as an approximation to minimizing logarithmic stress.
 
 # Algorithm
 
